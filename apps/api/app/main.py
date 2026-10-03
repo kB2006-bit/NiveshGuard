@@ -4,8 +4,9 @@ from .schemas.session import SessionCreate, SessionResponse
 from .services.intake import intake_service
 from .services.ai.extraction import extraction_service
 from .services.ai.manipulation import manipulation_engine
-from .api import incidents
+from .api import incidents, verification
 from .core.database import engine, Base
+from .services.verification.registry import VerificationRegistryService
 
 app = FastAPI(title="NiveshGuard API")
 
@@ -13,9 +14,17 @@ app = FastAPI(title="NiveshGuard API")
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    # Seed the verification registry
+    registry = VerificationRegistryService()
+    from .core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        registry.seed_registry(db)
+    finally:
+        db.close()
 
 app.include_router(incidents.router, prefix="/api/v1")
-app.include_router(incidents.router, prefix="/api/v1")
+app.include_router(verification.router, prefix="/api/v1")
 
 # Temporary store for results (since Phase 1 persistence is minimal)
 results_cache = {}
