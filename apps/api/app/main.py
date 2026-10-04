@@ -91,3 +91,56 @@ async def get_analysis_result(session_id: str):
 @app.get("/api/v1/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.post("/api/verify/workflow")
+async def verify_workflow(state: str = Form(...), session_id: str = Form(...)):
+    # Check session
+    result = results_cache.get(session_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if state == "BEFORE_ACTION":
+        return {
+            "workflow": {
+                "primary_message": "Please pause and verify the source before proceeding.",
+                "sensitive_data_warning": True,
+                "checklist": [
+                    {"item": "Verify the sender's email or phone number.", "source": "Official Records"},
+                    {"item": "Do not click on suspicious links.", "source": "Cybersecurity Guidelines"}
+                ]
+            }
+        }
+    elif state == "UNCERTAIN":
+        return {
+            "workflow": {
+                "cautionary_note": "You are uncertain about this communication. Proceed with caution.",
+                "missing_evidence": [
+                    "Lack of official sender verification.",
+                    "Unclear purpose of the communication."
+                ],
+                "verification_steps": [
+                    "Contact the organization directly using their official website.",
+                    "Check online for similar reported scams."
+                ]
+            }
+        }
+    elif state == "AFTER_ACTION":
+        return {
+            "workflow": {
+                "incident_summary": "You have already interacted with the suspicious communication. Please secure your accounts.",
+                "reporting_pathways": [
+                    {
+                        "channel": "Cyber Crime Portal",
+                        "instruction": "Report the incident online.",
+                        "url": "https://cybercrime.gov.in"
+                    },
+                    {
+                        "channel": "Bank/Financial Institution",
+                        "instruction": "Contact your bank immediately to block any unauthorized transactions.",
+                        "url": "https://rbi.org.in"
+                    }
+                ]
+            }
+        }
+    else:
+        raise HTTPException(status_code=400, detail="Invalid state")
