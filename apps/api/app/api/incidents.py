@@ -55,3 +55,19 @@ def get_incident_evidence(incident_id: str, db: Session = Depends(get_db)):
             "items": items
         })
     return evidence_data
+
+@router.get("/{incident_id}/summary")
+def get_incident_summary(incident_id: str, db: Session = Depends(get_db)):
+    incident = db.query(Incident).filter(Incident.incident_id == incident_id).first()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    
+    packs = evidence_service.get_packs_for_incident(db, incident_id)
+    total_items = sum(len(evidence_service.get_evidence_items(db, pack.pack_id)) for pack in packs)
+    
+    return {
+        "incident_id": incident.incident_id,
+        "date": incident.incident_date,
+        "summary": f"Incident reported with {len(packs)} evidence pack(s) containing {total_items} item(s).",
+        "notes": incident.user_notes
+    }
