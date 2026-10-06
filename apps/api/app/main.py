@@ -1,12 +1,14 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
-from .core.security import create_session, get_session
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Response
+from .core.security import create_session, get_session, session_store
 from .schemas.session import SessionCreate, SessionResponse
 from .services.intake import intake_service
 from .services.ai.extraction import extraction_service
 from .services.ai.manipulation import manipulation_engine
 from .api import incidents, verification
-from .core.database import engine, Base
+from .core.database import engine, Base, get_db
 from .services.verification.registry import VerificationRegistryService
+from sqlalchemy.orm import Session as DbSession
+from .models.session import Session as SessionModel
 
 app = FastAPI(title="NiveshGuard API")
 
@@ -144,3 +146,29 @@ async def verify_workflow(state: str = Form(...), session_id: str = Form(...)):
         }
     else:
         raise HTTPException(status_code=400, detail="Invalid state")
+
+@app.delete("/api/v1/sessions/{id}", status_code=204)
+async def delete_session(id: str, db: DbSession = Depends(get_db)):
+    deleted = False
+    
+    # 1. Remove from in-memory session_store
+    if id in session_store:
+        del session_store[id]
+        deleted = True
+        
+    # 2. Remove from in-memory results_cache
+    if id in results_cache:
+        del results_cache[id]
+        deleted = True
+        
+    # 3. Remove persistent session data from DB
+    db_session = db.query(SessionModel).filter(SessionModel.session_id == id).first()
+    if db_session:
+        db.delete(db_session)
+        db.commit()
+        deleted = True
+        
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    return Response(status_code=204)
